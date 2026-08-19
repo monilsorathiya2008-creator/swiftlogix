@@ -1,0 +1,9 @@
+# Build outputs
+target/
+*.class
+*.log
+
+# IDE & Environment
+.idea/
+*.iml
+.DS_Store
