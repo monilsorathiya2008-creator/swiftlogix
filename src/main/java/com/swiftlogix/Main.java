@@ -8,19 +8,70 @@ import com.swiftlogix.model.Checkpoint;
 import com.swiftlogix.model.Hub;
 import com.swiftlogix.model.Parcel;
 
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Main - Pure Java entrypoint demonstrating HubGraph, Dijkstra Router, ParcelBST, and SortingQueue.
+ * Main - Interactive Command-Line Interface (CLI) for SwiftLogix Java Engine.
  */
 public class Main {
-    public static void main(String[] args) {
-        System.out.println("=========================================================");
-        System.out.println("🚚 SwiftLogix: Express Warehouse & Dijkstra Routing Engine (Java)");
-        System.out.println("=========================================================\n");
+    private static HubGraph graph = new HubGraph();
+    private static DijkstraRouter router;
+    private static ParcelBST bst = new ParcelBST();
+    private static Map<String, SortingQueue> hubQueues = new HashMap<>();
 
-        // Step 1: Initialize HubGraph with 9 Indian logistics hubs
-        HubGraph graph = new HubGraph();
+    public static void main(String[] args) {
+        initNetworkData();
+        router = new DijkstraRouter(graph);
+
+        Scanner scanner = new Scanner(System.in);
+        boolean running = true;
+
+        System.out.println("=========================================================");
+        System.out.println("🚚 SwiftLogix: Interactive Java Logistics Terminal");
+        System.out.println("=========================================================");
+
+        while (running) {
+            System.out.println("\n---------------- MAIN MENU ----------------");
+            System.out.println("1. 🏙️  List All Logistics Hubs & Capacity");
+            System.out.println("2. 🧮 Run Dijkstra Shortest Path Search");
+            System.out.println("3. 📦 Book New Express Shipment");
+            System.out.println("4. 🔍 Track Parcel by Code (BST Search)");
+            System.out.println("5. 🏭 Simulate Warehouse Barcode Scan");
+            System.out.println("6. 🚪 Exit Terminal");
+            System.out.print("\nSelect Option (1-6): ");
+
+            if (!scanner.hasNextLine()) break;
+            String choice = scanner.nextLine().trim();
+
+            switch (choice) {
+                case "1":
+                    listHubs();
+                    break;
+                case "2":
+                    queryShortestPath(scanner);
+                    break;
+                case "3":
+                    bookShipment(scanner);
+                    break;
+                case "4":
+                    trackParcel(scanner);
+                    break;
+                case "5":
+                    simulateScanner(scanner);
+                    break;
+                case "6":
+                    System.out.println("\n👋 Thank you for using SwiftLogix Logistics Engine. Goodbye!");
+                    running = false;
+                    break;
+                default:
+                    System.out.println("❌ Invalid option. Please enter a number from 1 to 6.");
+            }
+        }
+        scanner.close();
+    }
+
+    private static void initNetworkData() {
         graph.addHub("HUB_BOM", "Mumbai Central Hub", "Mumbai", 19.0760, 72.8777, 1500);
         graph.addHub("HUB_DEL", "Delhi NCR Mega Hub", "New Delhi", 28.6139, 77.2090, 2000);
         graph.addHub("HUB_BLR", "Bengaluru Tech Hub", "Bengaluru", 12.9716, 77.5946, 1200);
@@ -31,7 +82,10 @@ public class Main {
         graph.addHub("HUB_PNQ", "Pune Express Gateway", "Pune", 18.5204, 73.8567, 800);
         graph.addHub("HUB_JAI", "Jaipur North Logistics", "Jaipur", 26.9124, 75.7873, 750);
 
-        // Step 2: Add Weighted Interconnecting Transport Routes (Distance in km, Hours)
+        for (Hub h : graph.getAllHubs()) {
+            hubQueues.put(h.getId(), new SortingQueue(h.getId()));
+        }
+
         graph.addRoute("HUB_BOM", "HUB_PNQ", 150, 3.0, true);
         graph.addRoute("HUB_BOM", "HUB_AMD", 530, 9.0, true);
         graph.addRoute("HUB_BOM", "HUB_HYD", 710, 12.0, true);
@@ -45,41 +99,134 @@ public class Main {
         graph.addRoute("HUB_MAA", "HUB_HYD", 630, 10.0, true);
         graph.addRoute("HUB_HYD", "HUB_CCU", 1490, 23.0, true);
 
-        System.out.println("✅ HubGraph initialized with " + graph.getAllHubs().size() + " hubs.");
+        // Seed initial sample parcel
+        Parcel sample = new Parcel("SLX-90142", "TechCorp Electronics", "Aarav Sharma", 2.5, "HUB_BOM", "HUB_DEL");
+        sample.addCheckpoint(new Checkpoint("BOOKED", "HUB_BOM", "Mumbai Central Hub"));
+        bst.insert(sample);
+        graph.updateHubLoad("HUB_BOM", 1);
+        hubQueues.get("HUB_BOM").enqueue(sample);
+    }
 
-        // Step 3: Run Dijkstra Algorithm to calculate shortest route
-        DijkstraRouter router = new DijkstraRouter(graph);
-        String src = "HUB_BOM";
-        String dest = "HUB_DEL";
-        
-        System.out.println("\n🔍 Running Dijkstra Algorithm (" + src + " -> " + dest + "):");
-        DijkstraRouter.PathResult pathResult = router.findShortestPath(src, dest);
+    private static void listHubs() {
+        System.out.println("\n🏙️  LOGISTICS HUBS NETWORK STATUS:");
+        for (Hub h : graph.getAllHubs()) {
+            SortingQueue q = hubQueues.get(h.getId());
+            System.out.printf("  • %-8s | %-24s | %-12s | Load: %4d/%4d (%5.1f%%) | FIFO Queue: %d pkgs\n",
+                    h.getId(), h.getName(), h.getCity(), h.getCurrentLoad(), h.getCapacity(), h.getUtilizationPercent(), q != null ? q.size() : 0);
+        }
+    }
 
-        if (pathResult.found) {
-            String routeCities = pathResult.path.stream().map(Hub::getCity).collect(Collectors.joining(" -> "));
-            System.out.println("   ▶ Optimal Path: " + routeCities);
-            System.out.println("   ▶ Total Distance: " + pathResult.totalDistanceKm + " km");
-            System.out.println("   ▶ Est. Transit Time: " + pathResult.totalHours + " hrs");
+    private static void queryShortestPath(Scanner scanner) {
+        System.out.print("\nEnter Source Hub ID (e.g. HUB_BOM): ");
+        String src = scanner.nextLine().trim().toUpperCase();
+        System.out.print("Enter Destination Hub ID (e.g. HUB_DEL): ");
+        String dst = scanner.nextLine().trim().toUpperCase();
+
+        if (graph.getHub(src) == null || graph.getHub(dst) == null) {
+            System.out.println("❌ Invalid Hub ID entered.");
+            return;
         }
 
-        // Step 4: Test Parcel BST Indexing
-        System.out.println("\n📦 Testing ParcelBST Search Index:");
-        ParcelBST bst = new ParcelBST();
-        Parcel p1 = new Parcel("SLX-90142", "TechCorp Electronics", "Aarav Sharma", 2.5, "HUB_BOM", "HUB_DEL");
-        p1.addCheckpoint(new Checkpoint("BOOKED", "HUB_BOM", "Mumbai Central Hub"));
-        bst.insert(p1);
+        DijkstraRouter.PathResult result = router.findShortestPath(src, dst);
+        if (result.found) {
+            String pathStr = result.path.stream().map(Hub::getCity).collect(Collectors.joining(" -> "));
+            System.out.println("\n⚡ DIJKSTRA OPTIMAL ROUTE FOUND:");
+            System.out.println("   ▶ Optimal Path: " + pathStr);
+            System.out.println("   ▶ Total Distance: " + result.totalDistanceKm + " km");
+            System.out.println("   ▶ Est. Transit Time: " + result.totalHours + " hrs");
+        } else {
+            System.out.println("❌ No route available between " + src + " and " + dst);
+        }
+    }
 
-        Parcel found = bst.search("SLX-90142");
-        if (found != null) {
-            System.out.println("   ▶ Found Parcel: " + found.getTrackingCode() + " (" + found.getSender() + " -> " + found.getReceiver() + ")");
+    private static void bookShipment(Scanner scanner) {
+        System.out.println("\n📦 REGISTER NEW EXPRESS SHIPMENT:");
+        System.out.print("Sender Name: ");
+        String sender = scanner.nextLine().trim();
+        System.out.print("Recipient Name: ");
+        String receiver = scanner.nextLine().trim();
+        System.out.print("Parcel Weight (kg): ");
+        double weight = Double.parseDouble(scanner.nextLine().trim());
+
+        System.out.print("Origin Hub ID (e.g. HUB_BOM): ");
+        String origin = scanner.nextLine().trim().toUpperCase();
+        System.out.print("Destination Hub ID (e.g. HUB_DEL): ");
+        String dest = scanner.nextLine().trim().toUpperCase();
+
+        DijkstraRouter.PathResult pathResult = router.findShortestPath(origin, dest);
+        if (!pathResult.found) {
+            System.out.println("❌ Cannot book: No route exists between specified hubs.");
+            return;
         }
 
-        // Step 5: Test FIFO Warehouse Queue
-        System.out.println("\n🏭 Testing FIFO Warehouse Sorting Queue (HUB_BOM):");
-        SortingQueue queue = new SortingQueue("HUB_BOM");
-        queue.enqueue(p1);
-        System.out.println("   ▶ Queue Size: " + queue.size());
+        String trackingCode = "SLX-" + (10000 + new Random().nextInt(90000));
+        Parcel parcel = new Parcel(trackingCode, sender, receiver, weight, origin, dest);
+        parcel.setRoute(pathResult.path.stream().map(Hub::getId).collect(Collectors.toList()));
+        parcel.addCheckpoint(new Checkpoint("BOOKED", origin, graph.getHub(origin).getName()));
 
-        System.out.println("\n🎉 Pure Java Logistics Engine Execution Completed Successfully!");
+        bst.insert(parcel);
+        graph.updateHubLoad(origin, 1);
+        if (hubQueues.containsKey(origin)) hubQueues.get(origin).enqueue(parcel);
+
+        System.out.println("\n✅ SHIPMENT BOOKED SUCCESSFULLY!");
+        System.out.println("   ▶ Tracking Code: " + trackingCode);
+        System.out.println("   ▶ Calculated Route: " + pathResult.path.stream().map(Hub::getCity).collect(Collectors.joining(" -> ")));
+    }
+
+    private static void trackParcel(Scanner scanner) {
+        System.out.print("\nEnter Tracking Code (e.g. SLX-90142): ");
+        String code = scanner.nextLine().trim().toUpperCase();
+
+        Parcel parcel = bst.search(code);
+        if (parcel == null) {
+            System.out.println("❌ Parcel with tracking code '" + code + "' not found in BST search index.");
+            return;
+        }
+
+        System.out.println("\n📦 PARCEL TRACKING DETAILS (BST Looked Up):");
+        System.out.println("   ▶ Tracking Code: " + parcel.getTrackingCode());
+        System.out.println("   ▶ Sender: " + parcel.getSender() + " | Recipient: " + parcel.getReceiver());
+        System.out.println("   ▶ Weight: " + parcel.getWeightKg() + " kg | Status: " + parcel.getStatus());
+        System.out.println("   ▶ Checkpoints History:");
+        for (Checkpoint cp : parcel.getCheckpoints()) {
+            System.out.println("      • " + cp);
+        }
+    }
+
+    private static void simulateScanner(Scanner scanner) {
+        System.out.print("\nEnter Tracking Code to Scan: ");
+        String code = scanner.nextLine().trim().toUpperCase();
+
+        Parcel parcel = bst.search(code);
+        if (parcel == null) {
+            System.out.println("❌ Parcel '" + code + "' not found.");
+            return;
+        }
+
+        System.out.print("Enter Scanner Hub ID: ");
+        String hubId = scanner.nextLine().trim().toUpperCase();
+        Hub hub = graph.getHub(hubId);
+        if (hub == null) {
+            System.out.println("❌ Invalid Hub ID.");
+            return;
+        }
+
+        System.out.print("Scan Action (1: ARRIVED_AT_HUB, 2: DISPATCHED): ");
+        String action = scanner.nextLine().trim();
+
+        String newStatus = action.equals("1") ? "ARRIVED_AT_HUB" : "IN_TRANSIT";
+        parcel.setStatus(newStatus);
+        parcel.setCurrentHubId(hubId);
+        parcel.addCheckpoint(new Checkpoint(newStatus, hubId, hub.getName()));
+
+        if (action.equals("1")) {
+            graph.updateHubLoad(hubId, 1);
+            if (hubQueues.containsKey(hubId)) hubQueues.get(hubId).enqueue(parcel);
+        } else {
+            graph.updateHubLoad(hubId, -1);
+            if (hubQueues.containsKey(hubId)) hubQueues.get(hubId).dequeue();
+        }
+
+        System.out.println("✅ Barcode scan recorded: Parcel " + code + " -> " + newStatus + " at " + hub.getCity());
     }
 }
