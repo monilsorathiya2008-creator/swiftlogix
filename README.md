@@ -57,28 +57,38 @@ src/
 │   │   ├── RoutingStrategy.java           # Routing Objective Enum
 │   │   ├── ShippingCostCalculator.java    # Rate Breakdown & Quote Engine
 │   │   └── SortingQueue.java              # Priority-Aware Sorting Queue (Min-Heap)
+│   ├── web/
+│   │   └── SwiftLogixWebServer.java       # Embedded HTTP Server & REST API Provider
 │   └── model/
 │       ├── Checkpoint.java                # Tracking Milestone Event Model
 │       ├── Hub.java                       # Logistics Hub Model (Load, Capacity, Coords)
 │       ├── Parcel.java                    # Shipment Model (Priority, Cost, Status, Route)
 │       ├── ParcelPriority.java            # Priority Tier Enum (SAME_DAY, EXPRESS, STANDARD)
 │       └── Route.java                     # Highway Connection Edge Model (Distance, Time, Active)
+├── main/resources/web/
+│   ├── index.html                         # Web Dashboard UI
+│   ├── style.css                          # Glassmorphic Dark Design System
+│   └── app.js                             # Interactive Client & Leaflet Cartography
 └── test/java/com/swiftlogix/
     └── EngineTest.java                    # Unit Tests (Routing, Rates, Priority Queue, BST, Simulation)
 ```
 
 ---
 
-## 🛠️ How to Run
+## 🛠️ Quick Start
 
-### Run Unit Tests
-```powershell
-& "C:\Users\mbsor\.jdks\openjdk-25.0.2\bin\javac.exe" -cp "lib/mysql-connector-j-8.3.0.jar" -d "target/classes" (Get-ChildItem -Path "src/main/java" -Recurse -Filter "*.java" | Select-Object -ExpandProperty FullName)
-& "C:\Users\mbsor\.jdks\openjdk-25.0.2\bin\javac.exe" -cp "target/classes;lib/mysql-connector-j-8.3.0.jar" -d "target/test-classes" (Get-ChildItem -Path "src/test/java" -Recurse -Filter "*.java" | Select-Object -ExpandProperty FullName)
-& "C:\Users\mbsor\.jdks\openjdk-25.0.2\bin\java.exe" -ea -cp "target/classes;target/test-classes;lib/mysql-connector-j-8.3.0.jar" com.swiftlogix.EngineTest
+### 1. Launch Web Dashboard & Control Center
+```bash
+java -cp "target/classes;lib/mysql-connector-j-8.3.0.jar" com.swiftlogix.web.SwiftLogixWebServer
+```
+Open **`http://localhost:8080`** in your browser.
+
+### 2. Launch Interactive Terminal CLI
+```bash
+java -cp "target/classes;lib/mysql-connector-j-8.3.0.jar" com.swiftlogix.Main
 ```
 
-### Launch Interactive CLI
-```powershell
-& "C:\Users\mbsor\.jdks\openjdk-25.0.2\bin\java.exe" -cp "target/classes;lib/mysql-connector-j-8.3.0.jar" com.swiftlogix.Main
+### 3. Run Test Suite
+```bash
+java -ea -cp "target/classes;target/test-classes;lib/mysql-connector-j-8.3.0.jar" com.swiftlogix.EngineTest
 ```
