@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwiftLogix | Intelligent Logistics & Express Routing Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet Interactive Cartography Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+        <div class="nav-brand">
+            <div class="logo-icon">
+                <i class="fa-solid fa-truck-fast"></i>
+            </div>
+            <div class="brand-text">
+                <h1>SwiftLogix</h1>
+                <span>Logistics & Express Routing Engine</span>
+            </div>
+        </div>
+        <div class="role-switcher">
+            <button class="role-btn active" id="role-customer-btn"><i class="fa-solid fa-user"></i> Customer Portal</button>
+            <button class="role-btn" id="role-admin-btn"><i class="fa-solid fa-user-shield"></i> Admin Control Center</button>
+            <button class="role-lock-btn hidden" id="role-logout-btn" title="Lock Admin Mode & Logout"><i class="fa-solid fa-lock"></i></button>
+        </div>
+        <div class="nav-status">
+            <div class="status-indicator online" id="server-status">
+                <span class="pulse-dot"></span>
+                <span id="status-text">Engine Online (Port 8080)</span>
+            </div>
+            <div class="db-pill" id="db-status-pill">
+                <i class="fa-solid fa-database"></i> <span id="db-status-text">MySQL Active</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="dashboard-grid">
+
+        <!-- Customer Welcome Banner (Visible only in Customer Mode) -->
+        <section class="customer-banner hidden" id="customer-banner">
+            <div class="customer-banner-content">
+                <div class="badge-express"><i class="fa-solid fa-bolt"></i> FAST & RELIABLE EXPRESS FREIGHT</div>
+                <h2>Track Your Shipment & Calculate Rates</h2>
+                <p>Real-time express consignment tracking across India powered by the SwiftLogix high-speed engine.</p>
+            </div>
+        </section>
+
+        <!-- Top Metrics Ribbon (Admin Only) -->
+        <section class="metrics-ribbon" id="admin-metrics-ribbon">
+            <div class="metric-card">
+                <div class="metric-icon cyan"><i class="fa-solid fa-city"></i></div>
+                <div class="metric-info">
+                    <span class="metric-label">Regional Mega Hubs</span>
+                    <h3 id="stat-hubs-count">9 Hubs</h3>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon purple"><i class="fa-solid fa-route"></i></div>
+                <div class="metric-info">
+                    <span class="metric-label">Operational Highway Routes</span>
+                    <h3 id="stat-routes-count">12 Corridors</h3>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon amber"><i class="fa-solid fa-boxes-stacked"></i></div>
+                <div class="metric-info">
+                    <span class="metric-label">BST Tracked Shipments</span>
+                    <h3 id="stat-parcels-count">Loading...</h3>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon emerald"><i class="fa-solid fa-chart-pie"></i></div>
+                <div class="metric-info">
+                    <span class="metric-label">Network Capacity Utilization</span>
+                    <h3 id="stat-network-util">0.0%</h3>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content 2-Column Grid -->
+        <div class="content-columns">
+
+            <!-- LEFT COLUMN: Interactive Map & Visualizer -->
+            <section class="column-left">
+                <div class="glass-panel map-panel">
+                    <div class="panel-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-map-location-dot"></i>
+                            <h2>National Logistics Network Map</h2>
+                        </div>
+                        <div class="strategy-selector">
+                            <label for="routing-strategy"><i class="fa-solid fa-sliders"></i> Dijkstra Mode:</label>
+                            <select id="routing-strategy">
+                                <option value="SHORTEST_DISTANCE" selected>Shortest Distance (km)</option>
+                                <option value="FASTEST_TIME">Fastest Transit (hrs)</option>
+                                <option value="LEAST_CONGESTED">Congestion Avoidance</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Leaflet Map Viewport -->
+                    <div class="canvas-container">
+                        <div id="logistics-map"></div>
+                        
+                        <div class="map-overlay-info" id="map-route-overlay">
+                            <div class="route-badge"><i class="fa-solid fa-bolt"></i> <span id="overlay-route-path">Click two hubs to compute path</span></div>
+                            <div class="route-meta">
+                                <span id="overlay-dist">-- km</span> • 
+                                <span id="overlay-time">-- hrs</span> • 
+                                <span id="overlay-eta">ETA: --</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Map Legend -->
+                    <div class="map-legend">
+                        <div class="legend-item"><span class="legend-dot normal"></span> Normal Hub (&lt;70%)</div>
+                        <div class="legend-item"><span class="legend-dot warning"></span> Moderate Load (70-84%)</div>
+                        <div class="legend-item"><span class="legend-dot overloaded"></span> Overloaded (&gt;85%)</div>
+                        <div class="legend-item"><span class="legend-line regular"></span> Highway Route</div>
+                        <div class="legend-item"><span class="legend-line active-path"></span> Dijkstra Optimal Path</div>
+                    </div>
+                </div>
+
+                <!-- Hub Leaderboard & Bottlenecks (Admin Only) -->
+                <div class="glass-panel" id="admin-leaderboard-panel">
+                    <div class="panel-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-warehouse"></i>
+                            <h2>Warehouse Capacity & Bottlenecks</h2>
+                        </div>
+                        <button class="btn-refresh" id="btn-refresh-hubs"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+                    <div class="hubs-grid" id="hubs-leaderboard">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: Booking, Tracking & Simulation Controls -->
+            <section class="column-right">
+
+                <!-- TAB NAVIGATION -->
+                <div class="tabs-nav">
+                    <button class="tab-btn active" data-tab="tab-book"><i class="fa-solid fa-box-open"></i> Book Express</button>
+                    <button class="tab-btn" data-tab="tab-track"><i class="fa-solid fa-magnifying-glass-location"></i> Live Tracking</button>
+                    <button class="tab-btn" id="tab-simulate-btn" data-tab="tab-simulate"><i class="fa-solid fa-play"></i> Dispatch Simulator</button>
+                </div>
+
+                <!-- TAB 1: BOOKING & PRICE QUOTE -->
+                <div class="glass-panel tab-content active" id="tab-book">
+                    <div class="panel-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <h2>Register Express Shipment</h2>
+                        </div>
+                    </div>
+
+                    <form id="booking-form" class="app-form">
+                        <div class="form-row two-col">
+                            <div class="form-group">
+                                <label for="book-sender">Sender / Enterprise</label>
+                                <input type="text" id="book-sender" placeholder="e.g. Nexus Electronics" value="Nexus Electronics" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="book-receiver">Recipient Name</label>
+                                <input type="text" id="book-receiver" placeholder="e.g. Monil Sorathiya" value="Monil Sorathiya" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row two-col">
+                            <div class="form-group">
+                                <label for="book-origin">Origin Hub</label>
+                                <select id="book-origin" required></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="book-dest">Destination Hub</label>
+                                <select id="book-dest" required></select>
+                            </div>
+                        </div>
+
+                        <div class="form-row two-col">
+                            <div class="form-group">
+                                <label for="book-weight">Parcel Weight (kg)</label>
+                                <input type="number" id="book-weight" min="0.1" max="1000" step="0.1" value="2.5" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Priority Tier</label>
+                                <div class="priority-pills">
+                                    <label class="priority-pill">
+                                        <input type="radio" name="priority" value="STANDARD">
+                                        <span>Standard (1.0x)</span>
+                                    </label>
+                                    <label class="priority-pill">
+                                        <input type="radio" name="priority" value="EXPRESS" checked>
+                                        <span>⚡ Express (1.5x)</span>
+                                    </label>
+                                    <label class="priority-pill">
+                                        <input type="radio" name="priority" value="SAME_DAY">
+                                        <span>🚀 Same-Day (2.2x)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Rate Quote Card -->
+                        <div class="quote-card" id="quote-preview">
+                            <div class="quote-header">
+                                <span><i class="fa-solid fa-receipt"></i> Live Freight Quote</span>
+                                <span class="quote-eta" id="quote-eta-badge">ETA: Calculating...</span>
+                            </div>
+                            <div class="quote-breakdown">
+                                <div class="quote-item"><span>Calculated Distance:</span> <strong id="quote-dist">0 km</strong></div>
+                                <div class="quote-item"><span>Est. Transit Time:</span> <strong id="quote-time">0 hrs</strong></div>
+                                <div class="quote-item"><span>Fuel & Handling:</span> <strong id="quote-fuel">₹0.00</strong></div>
+                                <div class="quote-item total"><span>Total Shipping Fee:</span> <strong id="quote-total">₹0.00</strong></div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-primary" id="btn-submit-booking">
+                            <i class="fa-solid fa-shield-halved"></i> Book & Dispatch to Network
+                        </button>
+                    </form>
+                </div>
+
+                <!-- TAB 2: LIVE TRACKING -->
+                <div class="glass-panel tab-content" id="tab-track">
+                    <div class="panel-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-barcode"></i>
+                            <h2>Fast BST Parcel Tracking</h2>
+                        </div>
+                    </div>
+
+                    <div class="search-bar-container">
+                        <div class="search-input-wrap">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="track-code-input" placeholder="Enter Tracking Code (e.g. SLX-90142)" value="SLX-90142">
+                        </div>
+                        <button class="btn-primary-sm" id="btn-track-submit">Track</button>
+                    </div>
+
+                    <div class="quick-samples">
+                        <span>Quick Samples:</span>
+                        <button class="badge-chip" onclick="quickTrack('SLX-90142')">SLX-90142</button>
+                    </div>
+
+                    <!-- Tracking Result Card -->
+                    <div id="tracking-result-box" class="tracking-result-card hidden">
+                        <div class="track-header">
+                            <div>
+                                <span class="track-id" id="track-disp-code">SLX-XXXXX</span>
+                                <span class="priority-tag" id="track-disp-priority">Express</span>
+                            </div>
+                            <div class="status-badge" id="track-disp-status">IN_TRANSIT</div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="progress-section">
+                            <div class="progress-meta">
+                                <span id="track-progress-label">Journey Progress</span>
+                                <span id="track-progress-pct">45%</span>
+                            </div>
+                            <div class="progress-track">
+                                <div class="progress-fill" id="track-progress-bar" style="width: 45%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Route & Detail Grid -->
+                        <div class="track-details-grid">
+                            <div class="detail-item">
+                                <span class="label">Origin ➔ Destination</span>
+                                <strong id="track-disp-route">HUB_BOM ➔ HUB_DEL</strong>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Recipient</span>
+                                <strong id="track-disp-receiver">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Weight / Cost</span>
+                                <strong id="track-disp-cost">-- kg | ₹--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Est. Delivery ETA</span>
+                                <strong id="track-disp-eta" class="highlight-text">--</strong>
+                            </div>
+                        </div>
+
+                        <!-- Checkpoints Timeline -->
+                        <div class="timeline-container">
+                            <h4><i class="fa-solid fa-list-check"></i> Milestone Checkpoints History</h4>
+                            <div class="timeline-list" id="track-checkpoints-list">
+                                <!-- Checkpoints injected here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: SIMULATOR -->
+                <div class="glass-panel tab-content" id="tab-simulate">
+                    <div class="panel-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-satellite-dish"></i>
+                            <h2>End-to-End Multi-Hop Simulator</h2>
+                        </div>
+                    </div>
+
+                    <p class="sim-intro">Simulate physical transport across intermediate logistics hops from origin dispatch to final destination delivery.</p>
+
+                    <div class="form-group">
+                        <label for="sim-parcel-code">Select Tracking Code to Simulate</label>
+                        <div class="search-input-wrap">
+                            <i class="fa-solid fa-box"></i>
+                            <input type="text" id="sim-parcel-code" value="SLX-90142" placeholder="Tracking code">
+                        </div>
+                    </div>
+
+                    <button class="btn-accent" id="btn-run-simulation">
+                        <i class="fa-solid fa-play"></i> Start Automated Multi-Hop Simulation
+                    </button>
+
+                    <div class="sim-output-box hidden" id="sim-output-container">
+                        <h4><i class="fa-solid fa-terminal"></i> Simulation Execution Log:</h4>
+                        <div class="sim-logs" id="sim-logs-feed">
+                            <!-- Logs dynamically appended -->
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </div>
+    </main>
+
+    <!-- Modal for Booking Confirmation -->
+    <div class="modal-backdrop hidden" id="booking-modal">
+        <div class="modal-card">
+            <div class="modal-icon success"><i class="fa-solid fa-check"></i></div>
+            <h3>Shipment Successfully Booked!</h3>
+            <p>Your express consignment has been registered in the logistics graph and indexed into MySQL & BST.</p>
+            <div class="booking-receipt">
+                <div class="receipt-row"><span>Tracking Code:</span> <strong id="modal-code">SLX-XXXXX</strong></div>
+                <div class="receipt-row"><span>Total Shipping Cost:</span> <strong id="modal-cost">₹0.00</strong></div>
+                <div class="receipt-row"><span>Estimated Delivery:</span> <strong id="modal-eta">--</strong></div>
+                <div class="receipt-row"><span>Calculated Path:</span> <strong id="modal-path">--</strong></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-primary" id="btn-modal-track"><i class="fa-solid fa-location-crosshairs"></i> Track Shipment Now</button>
+                <button class="btn-secondary" id="btn-modal-close">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Admin Passcode Authentication -->
+    <div class="modal-backdrop hidden" id="admin-auth-modal">
+        <div class="modal-card auth-modal">
+            <div class="modal-icon auth-shield"><i class="fa-solid fa-shield-halved"></i></div>
+            <h3>Admin Access Required</h3>
+            <p>Enter the operations master passcode to access the National Logistics Control Center.</p>
+            
+            <form id="admin-auth-form" class="auth-form">
+                <div class="form-group" style="text-align: left; margin: 16px 0 8px 0;">
+                    <label for="admin-pass-input" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 6px; display: block;">
+                        <i class="fa-solid fa-key" style="color: var(--primary-cyan);"></i> Master Passcode
+                    </label>
+                    <div class="auth-input-wrap">
+                        <input type="password" id="admin-pass-input" placeholder="Enter admin passcode" autocomplete="current-password" required>
+                        <button type="button" id="btn-toggle-pass" title="Show/Hide Passcode"><i class="fa-solid fa-eye"></i></button>
+                    </div>
+                </div>
+
+                <div class="auth-error-msg hidden" id="admin-auth-error">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Incorrect passcode. Access Denied.
+                </div>
+
+                <div class="modal-actions" style="margin-top: 20px;">
+                    <button type="submit" class="btn-primary" id="btn-submit-admin-auth"><i class="fa-solid fa-unlock"></i> Unlock Admin Center</button>
+                    <button type="button" class="btn-secondary" id="btn-cancel-admin-auth">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -2,39 +2,70 @@ package com.swiftlogix.engine;
 
 import com.swiftlogix.model.Parcel;
 
-import java.util.LinkedList;
-import java.util.Queue;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.PriorityQueue;
 
 /**
- * SortingQueue - FIFO Queue for warehouse hub parcel sorting.
+ * SortingQueue - Priority-Aware Min-Heap Queue for warehouse hub parcel sorting.
+ * Parcels with higher priority (SAME_DAY > EXPRESS > STANDARD) are dequeued first,
+ * with FIFO ordering preserved among packages with identical priority.
  */
 public class SortingQueue {
+    private static class QueueEntry {
+        Parcel parcel;
+        long sequenceNumber;
+
+        QueueEntry(Parcel parcel, long sequenceNumber) {
+            this.parcel = parcel;
+            this.sequenceNumber = sequenceNumber;
+        }
+    }
+
     private String hubId;
-    private Queue<Parcel> items;
+    private PriorityQueue<QueueEntry> items;
+    private long globalSequenceCounter = 0;
 
     public SortingQueue(String hubId) {
         this.hubId = hubId;
-        this.items = new LinkedList<>();
+        this.items = new PriorityQueue<>(
+                Comparator.<QueueEntry>comparingInt(e -> e.parcel.getPriority() != null ? e.parcel.getPriority().getRank() : 3)
+                          .thenComparingLong(e -> e.sequenceNumber)
+        );
     }
 
-    public void enqueue(Parcel parcel) {
-        items.add(parcel);
+    public synchronized void enqueue(Parcel parcel) {
+        if (parcel != null) {
+            items.add(new QueueEntry(parcel, ++globalSequenceCounter));
+        }
     }
 
-    public Parcel dequeue() {
-        return items.poll();
+    public synchronized Parcel dequeue() {
+        QueueEntry entry = items.poll();
+        return entry != null ? entry.parcel : null;
     }
 
-    public Parcel peek() {
-        return items.peek();
+    public synchronized Parcel peek() {
+        QueueEntry entry = items.peek();
+        return entry != null ? entry.parcel : null;
     }
 
-    public boolean isEmpty() {
+    public synchronized boolean isEmpty() {
         return items.isEmpty();
     }
 
-    public int size() {
+    public synchronized int size() {
         return items.size();
+    }
+
+    public synchronized List<Parcel> getAllInPriorityOrder() {
+        PriorityQueue<QueueEntry> copy = new PriorityQueue<>(items);
+        List<Parcel> result = new ArrayList<>();
+        while (!copy.isEmpty()) {
+            result.add(copy.poll().parcel);
+        }
+        return result;
     }
 
     public String getHubId() { return hubId; }

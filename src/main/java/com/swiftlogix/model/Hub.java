@@ -32,7 +32,7 @@ public class Hub {
     public int getCurrentLoad() { return currentLoad; }
 
     public void updateLoad(int delta) {
-        this.currentLoad = Math.max(0, this.currentLoad + delta);
+        this.currentLoad = Math.max(0, Math.min(capacity * 2, this.currentLoad + delta));
     }
 
     public double getUtilizationPercent() {
@@ -40,8 +40,17 @@ public class Hub {
         return Math.round(((double) currentLoad / capacity) * 100.0);
     }
 
+    public boolean isOverloaded() {
+        return getUtilizationPercent() >= 85.0;
+    }
+
+    public int getAvailableCapacity() {
+        return Math.max(0, capacity - currentLoad);
+    }
+
     @Override
     public String toString() {
-        return String.format("%s (%s) [Load: %d/%d (%.1f%%)]", name, city, currentLoad, capacity, getUtilizationPercent());
+        return String.format("%s (%s) [Load: %d/%d (%.1f%%)%s]",
+                name, city, currentLoad, capacity, getUtilizationPercent(), isOverloaded() ? " ⚠️ OVERLOADED" : "");
     }
 }
